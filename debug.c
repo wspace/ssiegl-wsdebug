@@ -69,6 +69,41 @@ unsigned char breakpoint = 0xCF;
     } while(0)
 
 
+static int debug_exec_break(const char *arg);
+static int debug_exec_continue(const char *arg);
+static int debug_exec_exit(const char *arg);
+static int debug_exec_file(const char *arg);
+static int debug_exec_help(const char *arg);
+static int debug_exec_kill(const char *arg);
+static int debug_exec_list(const char *arg);
+static int debug_exec_next(const char *arg);
+static int debug_exec_run(const char *arg); 
+static int debug_exec_step(const char *arg);
+
+typedef int (* debug_exec_func)(const char *arg);
+
+struct {
+    char *name;
+    char *helptext;
+    debug_exec_func func;
+    unsigned int takes_arg:1;
+    unsigned int need_running_prog:1;
+} debug_commands[] = {
+    { "break", "set breakpoint at (or shortly before) address", debug_exec_break, 1, 0 },
+    { "continue", "continue execution", debug_exec_continue, 0, 1 },
+    { "cont", NULL, debug_exec_continue, 0, 1 },
+    { "exit", "leave debugger", debug_exec_exit, 0, 0 },
+    { "file", "use FILE as whitespace program to be debugged", debug_exec_file, 1, 0 },
+    { "help", "display this screen", debug_exec_help, 0, 0 },
+    { "kill", "kill execution of program being debugged", debug_exec_kill, 0, 1 },
+    { "list", "list lines around specified address", debug_exec_list, 1, 0 },
+    { "next", "execute a whole instruction", debug_exec_next, 0, 1 },
+    { "run", "start debugged program", debug_exec_run, 0, 0 },
+    { "step", "execute exactly one whitespace instruction", debug_exec_step, 0, 1 },
+    { "quit", "leave, just like exit.", debug_exec_exit, 0, 0 },
+};
+
+
 
 
 void debug_launch(void) 
@@ -120,6 +155,7 @@ void debug_launch(void)
  */
 static int debug_eval(char *cmd_line) 
 {
+    int i;
     char *command = NULL;
     char *argument = NULL;
 
@@ -154,90 +190,133 @@ static int debug_eval(char *cmd_line)
 
         if(!*argument) argument = NULL;
     }
-        
-    /* fprintf(stderr, "WSDBG: command='%s', argument='%s'\n", command, argument); */
 
-    /* okay, now try to evaluate the commands */
-    if(! strcmp(command, "help")) {
-        printf("list of wsdebug-commands:\n\n"
-               "break -- set breakpoint at (or shortly before) address\n"
-               "continue -- continue execution\n"
-               "exit -- leave debugger\n"
-               "file -- use FILE as whitespace program to be debugged\n"
-               "help -- display this screen\n"
-               "kill -- kill execution of program being debugged\n"
-               "list -- list lines around specified address\n"
-               "next -- execute a whole instruction\n"
-               "run -- start debugged program\n"
-               "step -- execute exactly one whitespace instruction\n"
-               "\n");
-    }
-    else if(!strcmp(command, "break")) {
-        if(argument) {
-            unsigned int value = 
-                debug_search_line_begin(strtoul(argument, NULL, 0));
+    for(i = 0; i < sizeof(debug_commands) / sizeof(debug_commands[0]); i ++) {
+        int p;
+        for(p = 0; ; p++) {
+            if(debug_commands[i].name[p] != command[p]) break;
+            if(debug_commands[i].name[p] == 0) {
+                /* okay, found correct command structure */
+                if(debug_commands[i].takes_arg && !argument) {
+                    printf("%s takes an argument, however you "
+                           "didn't supply one.\n", debug_commands[i].name);
+                    return 0; 
+                }
 
-            if(value < wsdata_len)
-                debug_set_breakpoint(value);
-            else
-                printf("cannot set breakpoint behind end of file.\n");
+                if(debug_commands[i].need_running_prog && !interprt_running) {
+                    printf("The program is not being run, try 'run'.\n");
+                    return 0;
+                }
+
+                return debug_commands[i].func(argument);
+            }
         }
-        else
-            printf("break takes an address argument, try specifying one.\n");
-    }
-    else if(!strcmp(command, "cont") || !strcmp(command, "continue")) {
-        if(interprt_running)
-            interprt_err_handler(stdout, interprt_cont());
-        else 
-            printf("The program is not being run, try 'run'.\n");
-    }
-    else if(!strcmp(command, "exit"))
-        return 1;
-
-    else if(!strcmp(command, "file")) {
-        if(argument) {
-            if(load_file(argument))
-                printf("%s: unable to open file\n", argument);
-            else
-                printf("%s: file successfully loaded.\n", argument);
-        }
-        else
-            printf("file takes a filename argument, try specifying one.\n");
-    }
-    else if(!strcmp(command, "kill")) {
-        interprt_reset(); 
-    }
-    else if(!strcmp(command, "list")) {
-        if(argument) {
-            unsigned long int value = strtoul(argument, NULL, 0);
-            interprt_output_list(stdout, 
-                                 &wsdata[debug_search_line_begin(value)], 10); 
-        }
-        else
-            printf("list takes an address argument, try specifying one.\n");
-    }
-    else if(!strcmp(command, "next")) {
-        if(interprt_running)
-            interprt_err_handler(stdout, interprt_next());
-        else 
-            printf("The program is not being run, try 'run'.\n");
-    }
-    else if(!strcmp(command, "run")) {
-        interprt_init();
-        interprt_err_handler(stdout, interprt_cont());
-    }
-    else if(!strcmp(command, "step")) {
-        if(interprt_running)
-            interprt_err_handler(stdout, interprt_step());
-        else 
-            printf("The program is not being run, try 'run'.\n");
-    }
-    else {
-        printf("Undefined command: \"%s\".  Try \"help\".\n", command);
     }
 
+    printf("Undefined command: \"%s\".  Try \"help\".\n", command);
     return 0;
 }
+
+
+
+static int debug_exec_help(const char *arg) 
+{
+    int i;
+
+    printf("list of wsdebug-commands:\n\n");
+
+    for(i = 0; i < sizeof(debug_commands) / sizeof(*debug_commands); i ++)
+        if(debug_commands[i].helptext)
+            printf("%s -- %s\n", debug_commands[i].name,
+                   debug_commands[i].helptext);
+
+    return 0; /* don't exit program */
+}
+
+
+
+static int debug_exec_break(const char *arg)
+{
+    unsigned int value = debug_search_line_begin(strtoul(arg, NULL, 0));
+
+    if(value < wsdata_len)
+        debug_set_breakpoint(value);
+    else
+        printf("cannot set breakpoint behind end of file.\n");
+    
+    return 0; /* continue executing wsdebug */
+}
+
+
+
+static int debug_exec_continue(const char *arg)
+{
+    interprt_err_handler(stdout, interprt_cont());
+    return 0; /* don't stop wsdebug here */
+}
+
+
+
+static int debug_exec_exit(const char *arg)
+{
+    return 1; /* exit wsdebug */
+}
+
+
+
+static int debug_exec_file(const char *argument)
+{
+    if(load_file(argument))
+        printf("%s: unable to open file\n", argument);
+    else
+        printf("%s: file successfully loaded.\n", argument);
+
+    return 0; /* request not to leave */
+}
+
+
+
+static int debug_exec_kill(const char *arg) 
+{
+    interprt_reset(); 
+    return 0;
+}
+
+
+
+static int debug_exec_list(const char *arg)
+{
+    unsigned long int value = strtoul(arg, NULL, 0);
+    interprt_output_list(stdout, &wsdata[debug_search_line_begin(value)], 10); 
+
+    return 0; /* don't exit yet */
+}
+
+
+
+static int debug_exec_next(const char *arg)
+{
+    interprt_err_handler(stdout, interprt_next());
+    return 0; /* continue executing wsdebug */
+}
+
+
+
+static int debug_exec_run(const char *arg)
+{
+    interprt_init();
+    interprt_err_handler(stdout, interprt_cont());
+    return 0;
+}
+
+
+
+static int debug_exec_step(const char *arg)
+{
+    interprt_err_handler(stdout, interprt_step());
+    return 0;
+}
+
 
 
 
