@@ -28,8 +28,8 @@
 
 
 /* define interpreter stacks first */
-STACK_DEF(signed int, exec_stack, exec_stack_len, exec_stack_alloc)
-STACK_DEF(signed int, exec_heap, exec_heap_len, exec_heap_alloc)
+STACK_DEF(WSVAR_TYPE, exec_stack, exec_stack_len, exec_stack_alloc)
+STACK_DEF(WSVAR_TYPE, exec_heap, exec_heap_len, exec_heap_alloc)
 STACK_DEF(unsigned int, exec_bt, exec_bt_len, exec_bt_alloc)
 
 int interprt_running = 0;
@@ -43,7 +43,8 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip);
 static interprt_do_stat interprt_do_flow_control(const unsigned char *ip); 
 
 static interprt_do_stat interprt_search_label(const unsigned char *label); 
-static signed int interprt_number(const unsigned char *ptr);
+static void interprt_value(WSVAR_TYPE *dest, const unsigned char *ptr);
+static unsigned int interprt_number(const unsigned char *ptr);
 
 
 
@@ -255,27 +256,35 @@ static interprt_do_stat interprt_do_stack_manip(const unsigned char *ip)
             switch(ip[1]) {
                 case ' ': /* duplicate top item */
                     {
-                        unsigned int value;
+                        WSVAR_TYPE value; WSVAR_INIT(value);
 
                         if(! exec_stack_len) return DO_STACK_UNDERFLOW;
 
-                        value = exec_stack_get(); 
+                        exec_stack_get(value);
                         exec_stack_push(value);
+
+                        WSVAR_CLEAR(value);
                         return DO_OKAY;
                     }
                     
                 case '\t': /* swap top two items */
                     {
-                        unsigned int first, second;
-                        
+                        WSVAR_TYPE first, second;
+                        WSVAR_INIT(first);
+                        WSVAR_INIT(second);
+
                         if(exec_stack_len < 2) return DO_STACK_UNDERFLOW;
 
-                        first = exec_stack_pop();
-                        second = exec_stack_pop();
+                        exec_stack_pop(first);
+                        exec_stack_pop(second);
 
                         /* okay, now push first element (former top) first */
                         exec_stack_push(first);
                         exec_stack_push(second);
+
+                        /* free our variables again */
+                        WSVAR_CLEAR(first);
+                        WSVAR_CLEAR(second); 
                         return DO_OKAY;
                     }
                     
@@ -289,33 +298,47 @@ static interprt_do_stat interprt_do_stack_manip(const unsigned char *ip)
         case '\t':
             switch(ip[1]) {
                 case ' ':
-                    if(ip[2] == '\n') return DO_SYNTAX_ERROR; 
+                    /* copy n-th item onto top of stack */
+
+                    /* enforce positive numbers, which begin with a space */
+                    if(ip[2] != ' ') return DO_SYNTAX_ERROR;
                     {
-                        int value;
-                        int stack_pos = interprt_number(&ip[2]);
-                        if(stack_pos < 0) return DO_SYNTAX_ERROR;
-                        
-                        if((unsigned int)stack_pos >= exec_stack_len) 
+                        WSVAR_TYPE value; 
+
+                        unsigned int stack_pos = interprt_number(&ip[3]);
+
+                        if(stack_pos >= exec_stack_len) 
                             return DO_STACK_UNDERFLOW;
 
-                        value = exec_stack[exec_stack_len - 1 - stack_pos];
+                        WSVAR_INIT(value);
+                        
+                        WSVAR_ASSIGN(value, exec_stack[exec_stack_len - 1 - stack_pos]);
                         exec_stack_push(value);
+
+                        WSVAR_CLEAR(value);
                         return DO_OKAY;
                     }
                     
                 case '\n':
-                    if(ip[2] == '\n') return DO_SYNTAX_ERROR; 
+                    /* discard a whole lot items from stack,
+                     * not touching the top!
+                     */
+                    if(ip[2] != ' ') return DO_SYNTAX_ERROR; 
                     {
-                        int stack_save;
-                        int discard_items = interprt_number(&ip[2]);
-                        if(discard_items < 0) return DO_SYNTAX_ERROR;
+                        WSVAR_TYPE stack_save;
 
-                        if((unsigned int)discard_items + 1 >= exec_stack_len)
+                        unsigned int discard_items = interprt_number(&ip[3]);
+
+                        if(discard_items + 1 >= exec_stack_len)
                             return DO_STACK_UNDERFLOW;
 
-                        stack_save = exec_stack_pop();
-                        exec_stack_len -= (unsigned int)discard_items;
+                        WSVAR_INIT(stack_save);
+
+                        exec_stack_pop(stack_save);
+                        exec_stack_len -= discard_items;
                         exec_stack_push(stack_save);
+                        WSVAR_CLEAR(stack_save);
+
                         return DO_OKAY;
                     }
                     
@@ -324,11 +347,22 @@ static interprt_do_stat interprt_do_stack_manip(const unsigned char *ip)
                     return DO_SYNTAX_ERROR;
             }
 
-        case ' ':
+        case ' ': 
+            /* push a number onto top of stack */
+
             /* sign must be either \t or ' '! */
             if(ip[1] == '\n') return DO_SYNTAX_ERROR; 
-            exec_stack_push(interprt_number(&ip[1]));
-            return DO_OKAY;
+
+            {
+                WSVAR_TYPE value;
+                WSVAR_INIT(value);
+
+                interprt_value(&value, &ip[1]);
+                exec_stack_push(value);
+
+                WSVAR_CLEAR(value);
+                return DO_OKAY;
+            }
     }
 
     return DO_SYNTAX_ERROR;
@@ -337,20 +371,36 @@ static interprt_do_stat interprt_do_stack_manip(const unsigned char *ip)
 
 
 
-/* signed int interprt_number(const unsigned char *ptr)
+/* unsigned int interprt_number(const unsigned char *ptr)
  *
- * reinterpret ws-style-number to common signed int value
+ * reinterpret ws-style-number to common unsigned int value, make
+ * sure ptr pointer to the char, behind the signed bit of the ws-string!
  */
-static signed int interprt_number(const unsigned char *ptr) {
+static unsigned int interprt_number(const unsigned char *ptr) {
     unsigned int value = 0;
-    const unsigned char *sign = ptr ++;
 
     if(*ptr != '\n') do {
         value <<= 1;
         if(*ptr == '\t') value |= 1;
     } while(*(++ ptr) != '\n');
 
-    return *sign == ' ' ? value : -value;
+    return value;
+}
+
+
+
+
+/* void interprt_value(WSVAR_TYPE *result, const unsigned char *ptr)
+ *
+ * reinterpret ws-style-number to WSVAR_TYPE
+ */
+static void interprt_value(WSVAR_TYPE *result, const unsigned char *ptr) {
+    WSVAR_SET_SI(*result, 0); 
+
+    if(*ptr != '\n') do {
+        WSVAR_MUL_UI(*result, *result, 2);
+        if(*ptr == '\t') WSVAR_ADD_UI(*result, *result, 1);
+    } while(*(++ ptr) != '\n');
 }
 
 
@@ -363,28 +413,30 @@ static signed int interprt_number(const unsigned char *ptr) {
  */
 static interprt_do_stat interprt_do_arithmetic(const unsigned char *ip)
 {
-    unsigned int result = 0;
-
     /* the first _pushed_ argument is the first argument of the operation! */
-    unsigned int first, second;
-    
+    WSVAR_TYPE first, second;
+
     if(exec_stack_len < 2) return DO_STACK_UNDERFLOW;
-    second = exec_stack_pop();
-    first = exec_stack_pop();
+
+    WSVAR_INIT(first);
+    WSVAR_INIT(second);
+    
+    exec_stack_pop(second);
+    exec_stack_pop(first);
 
     switch(ip[0]) {
         case ' ':
             switch(ip[1]) {
-                case ' ': result = first + second; break;
-                case '\t': result = first - second; break;
-                case '\n': result = first * second; break;
+                case ' ': WSVAR_ADD(first, first, second); break;
+                case '\t': WSVAR_SUB(first, first, second); break;
+                case '\n': WSVAR_MUL(first, first, second); break;
             }
             break;
 
         case '\t':
             switch(ip[1]) {
-                case ' ': result = first / second; break;
-                case '\t': result = first % second; break;
+                case ' ': WSVAR_DIV(first, first, second); break;
+                case '\t': WSVAR_MOD(first, first, second); break;
                 default: return DO_SYNTAX_ERROR;
             }
             break;
@@ -393,7 +445,11 @@ static interprt_do_stat interprt_do_arithmetic(const unsigned char *ip)
             return DO_SYNTAX_ERROR;
     }
 
-    exec_stack_push(result);
+    exec_stack_push(first);
+
+    WSVAR_CLEAR(first);
+    WSVAR_CLEAR(second);
+
     return DO_OKAY;
 }
 
@@ -407,38 +463,60 @@ static interprt_do_stat interprt_do_arithmetic(const unsigned char *ip)
  */
 static interprt_do_stat interprt_do_heap_access(const unsigned char *ip)
 {
-    signed int value;
+    WSVAR_TYPE value, address_ws;
     unsigned int address;
+
+    WSVAR_INIT(value);
+    WSVAR_INIT(address_ws);
 
     switch(*ip) {
         case ' ': /* store */
-            if(exec_stack_len < 2) return DO_STACK_UNDERFLOW;
+            if(exec_stack_len < 2) {
+                WSVAR_CLEAR(value);
+                WSVAR_CLEAR(address_ws);
 
-            /* return DO_STACK_UNDERFLOW if address is negative! */
-            if(exec_stack[exec_stack_len - 2] < 0) return DO_STACK_UNDERFLOW;
+                return DO_STACK_UNDERFLOW;
+            }
 
-            value = exec_stack_pop();
-            address = exec_stack_pop(); 
+            /* FIXME check, that address is positive!! */
+
+            exec_stack_pop(value);
+            exec_stack_pop(address_ws);
+
+            address = WSVAR_GET_UI(address_ws);
 
             exec_heap_allocate(address);
             exec_heap_write(address,value);
             break;
 
         case '\t': /* retrieve */
-            if(! exec_stack_len) return DO_STACK_UNDERFLOW;
+            if(! exec_stack_len) {
+                WSVAR_CLEAR(value);
+                WSVAR_CLEAR(address_ws);
 
-            /* return DO_STACK_UNDERFLOW if address is negative! */
-            if(exec_stack_get() < 0) return DO_STACK_UNDERFLOW;
+                return DO_STACK_UNDERFLOW;
+            }
 
-            address = exec_stack_pop();
+            /* FIXME make sure that address is positive!! */
+
+            exec_stack_pop(address_ws);
+            address = WSVAR_GET_UI(address_ws);
 
             exec_heap_allocate(address);
-            exec_stack_push(exec_heap_read(address));
+            exec_heap_read(address,value);
+
+            exec_stack_push(value);
             break;
 
         default:
+            WSVAR_CLEAR(value);
+            WSVAR_CLEAR(address_ws);
+
             return DO_SYNTAX_ERROR;
     }
+
+    WSVAR_CLEAR(value);
+    WSVAR_CLEAR(address_ws);
 
     return DO_OKAY;
 }
@@ -453,30 +531,40 @@ static interprt_do_stat interprt_do_heap_access(const unsigned char *ip)
  */
 static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
 {
-    signed int value = 0;
+    WSVAR_TYPE value;
+    WSVAR_INIT(value); 
 
     if(*ip == ' ') {
         /* we got an I/O write */
-        if(! exec_stack_len) return DO_STACK_UNDERFLOW;
-        value = exec_stack_pop(); 
+        if(! exec_stack_len) {
+            WSVAR_CLEAR(value);
+            return DO_STACK_UNDERFLOW;
+        }
+
+        exec_stack_pop(value);
 
         switch(ip[1]) {
             case ' ': /* output character */
-                printf("%c", value);
+                printf("%c", (int)WSVAR_GET_UI(value) & 0xff);
                 break;
 
             case '\t': /* output number */
-                printf("%d", value);
+                WSVAR_PRINTF(value);
                 break;
                 
             default:
+                WSVAR_CLEAR(value);
                 return DO_SYNTAX_ERROR;
         }
 
+        WSVAR_CLEAR(value);
         return DO_OKAY;
     }
 
-    if(*ip != '\t') return DO_SYNTAX_ERROR;
+    if(*ip != '\t') {
+        WSVAR_CLEAR(value);
+        return DO_SYNTAX_ERROR;
+    }
 
 #ifdef __USE_POSIX
     /* turn off canonical mode, if it isn't turn off yet! */
@@ -499,14 +587,15 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
     /* we got an I/O read insn */
     switch(ip[1]) {
         case ' ': /* read character */
-            value = getchar();
+            WSVAR_SET_SI(value, getchar());
             break;
 
         case '\t': /* read number */
-            scanf("%d", &value);
+            WSVAR_INPUT(value);
             break;
 
         default:
+            WSVAR_CLEAR(value);
             return DO_SYNTAX_ERROR;
     }
 
@@ -520,18 +609,25 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
     /* okay, now store that value to the heap */
     {
         unsigned int address;
+        WSVAR_TYPE address_ws;
 
-        if(! exec_stack_len) return DO_STACK_UNDERFLOW;
+        if(! exec_stack_len) {
+            WSVAR_CLEAR(value);
+            return DO_STACK_UNDERFLOW;
+        }
 
-        /* return DO_STACK_UNDERFLOW if address is negative! */
-        if(exec_stack_get() < 0) return DO_STACK_UNDERFLOW;
+        /* FIXME make sure address is not negative! */
 
-        address = exec_stack_pop();
+        WSVAR_INIT(address_ws);
+        exec_stack_pop(address_ws);
+        address = WSVAR_GET_UI(address_ws);
 
         exec_heap_allocate(address);
         exec_heap_write(address,value);
-    }
 
+        WSVAR_CLEAR(value);  
+        WSVAR_CLEAR(address_ws);
+    }
     return DO_OKAY;
 }
 
@@ -589,13 +685,23 @@ static interprt_do_stat interprt_do_flow_control(const unsigned char *ip)
                      * tab => jump if stack value is negative
                      */
                     {
-                        signed int value;
-
+                        WSVAR_TYPE value;
+                        int compare_result;
+                        
                         if(! exec_stack_len) return DO_STACK_UNDERFLOW;
-                        value = exec_stack_pop();
 
-                        if((ip[1] == ' ' && value == 0) || 
-                           (ip[1] == '\t' && value < 0)) {
+                        WSVAR_INIT(value);
+                        exec_stack_pop(value);
+
+                        compare_result = WSVAR_CMP_ZERO(value);
+                        /* compare_result:
+                         * positive => value is positive
+                         * zero => value is zero
+                         * negative => value is negative
+                         */
+
+                        if((ip[1] == ' ' && compare_result == 0) || 
+                           (ip[1] == '\t' && compare_result < 0)) {
                             /* okay, we've got to jump ... */
                             exec_bt_len --; /* drop old insn ptr */
                             return interprt_search_label(&ip[2]);
@@ -706,22 +812,9 @@ interprt_do_stat interprt_err_handler(FILE *target, interprt_do_stat status)
         int dump;
         
         fprintf(target, "[stack=0x%04x]: ", exec_stack_len);
+
         for(dump = exec_stack_len - 1; dump >= dump_to; dump --)
-            if(exec_stack[dump] >= ' ' && exec_stack[dump] < 'z')
-                fprintf(target, "0x%02x(%c)  ", exec_stack[dump], exec_stack[dump]);
-
-            else if(exec_stack[dump] >= 0) {
-                if(exec_stack[dump] <= 0xFF)
-                    fprintf(target, "0x%02x  ", exec_stack[dump]);
-
-                else if(exec_stack[dump] <= 0xFFFF)
-                    fprintf(target, "0x%04x  ", exec_stack[dump]);
-
-                else 
-                    fprintf(target, "0x%08x  ", exec_stack[dump]);
-            }
-            else 
-                fprintf(target, "0x%08x  ", exec_stack[dump]);
+            WSVAR_DUMP_HEXPREFIX(exec_stack[dump]);
 
         fprintf(target, "\n");
     }
