@@ -112,13 +112,19 @@ void debug_launch(void)
     for(;;) {
 #ifdef HAVE_LIBREADLINE
         char *buf;
+        static char *last = NULL;
 
         buf = readline("\n(wsdebug) ");
         if(! buf) break; /* we're at eof, get outta here */
 
 #ifdef HAVE_READLINE_HISTORY
-        if(*buf) add_history(buf);
+        if(*buf && (!last || !strcmp(last, buf))) add_history(buf);
 #endif
+        if(!*buf) {
+            /* okay, no arg supplied, just execute last command once more */
+            free(buf);
+            buf = last;
+        }
 
 #else
         /* we do not have readline library available, work around, using
@@ -126,7 +132,7 @@ void debug_launch(void)
          */
         char buf[256];
 
-        /* write out wsdebug prompot */
+        /* write out wsdebug prompt */
         printf("\n(wsdebug) ");
         if(! fgets(buf, sizeof(buf), stdin)) break;
 #endif
@@ -136,7 +142,10 @@ void debug_launch(void)
 
 #ifdef HAVE_LIBREADLINE
         /* get rid of memory allocated by readline() */
-        free(buf);
+        if(last != buf && last) free(last);
+
+        /* store the last command, the user's entered */
+        last = buf;
 #endif
     }
 
