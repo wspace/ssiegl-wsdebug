@@ -118,11 +118,7 @@
         WSVAR_INIT_EXEC(s,a); \
     } while(0)
 
-#define WSVAR_STACK_RESET(s,l,a) \
-    do { \
-        WSVAR_CLEAR_STACK(s,a); \
-        (l) = 0; \
-    } while(0)
+#define WSVAR_STACK_RESET(s,l,a) l=0
 
 #define WSVAR_STACK_PUSH(s,l,a,v) \
     do { \
