@@ -214,6 +214,7 @@ extern struct toggle_t {
 
 enum {
     TOGGLE_NOCANON,
+    TOGGLE_STRIP,
     TOGGLE_LAST,
 };
 

@@ -103,7 +103,8 @@ static void label_cache_create(void);
  * e.g. allow to choose whether to disable canonical terminal mode or not.
  */
 struct toggle_t toggles[] = {
-    /* TOGGLE_NOCANON */ { "nocanon", "put terminal into non-canonical mode on input", 1 }
+    /* TOGGLE_NOCANON */ { "nocanon", "put terminal into non-canonical mode on input", 1 },
+    /* TOGGLE_STRIP   */ { "strip", "show first seven instructions only, when listing", 1 }
 };
 
 
@@ -850,7 +851,8 @@ void interprt_output_list(FILE *target, const unsigned char *wsdata_ptr, int lin
     }
 
     while(lines -- && wsdata_ptr < wsdata + wsdata_len) {
-        int count = 8; /* write out no more but 8 elements per line */
+        /* write out no more but 8 elements per line, per default */
+        int count = 8 * toggles[TOGGLE_STRIP].state; 
 
         fprintf(target, "[ip=0x%04x]: ", wsdata_ptr - wsdata);
 
