@@ -12,6 +12,10 @@
  * whitespace debugger (console based)
  */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
@@ -21,7 +25,33 @@
 #include "fileio.h"
 #include "interprt.h"
 
-#define VERSION "0.0.1"
+
+
+/* add cruft, related to libreadline and it's history thingy
+ */
+#ifdef HAVE_LIBREADLINE
+#  if defined(HAVE_READLINE_READLINE_H)
+#    include <readline/readline.h>
+#  elif defined(HAVE_READLINE_H)
+#    include <readline.h>
+#  else
+extern char *readline ();
+#  endif
+#endif
+
+#ifdef HAVE_READLINE_HISTORY
+#  if defined(HAVE_READLINE_HISTORY_H)
+#    include <readline/history.h>
+#  elif defined(HAVE_HISTORY_H)
+#    include <history.h>
+#  else
+extern void add_history ();
+extern int write_history ();
+extern int read_history ();
+#  endif
+#endif
+
+
 
 static int debug_eval(char *cmd_line);
 static unsigned int debug_search_line_begin(unsigned int address);
@@ -45,14 +75,37 @@ void debug_launch(void)
 {
     /* now start to read and evaluate commands */
     for(;;) {
-        /* FIXME use readline or something similar here */
+#ifdef HAVE_LIBREADLINE
+        char *buf;
+
+        buf = readline("\n(wsdebug) ");
+        if(! buf) break; /* we're at eof, get outta here */
+
+#ifdef HAVE_READLINE_HISTORY
+        if(*buf) add_history(buf);
+#endif
+
+#else
+        /* we do not have readline library available, work around, using
+         * standard fgets
+         */
         char buf[256];
 
+        /* write out wsdebug prompot */
         printf("\n(wsdebug) ");
-        if(fgets(buf, sizeof(buf), stdin) && debug_eval(buf))
+        if(! fgets(buf, sizeof(buf), stdin)) break;
+#endif
+
+        if(debug_eval(buf))
             break;
+
+#ifdef HAVE_LIBREADLINE
+        /* get rid of memory allocated by readline() */
+        free(buf);
+#endif
     }
 
+    putchar('\n');
     return;
 }
 

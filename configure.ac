@@ -5,7 +5,7 @@ dnl Copyright (C) 2004 Stefan Siegl, Germany
 
 AC_PREREQ(2.59)
 AC_INIT("wsdebug", 0.1, wsdebug-devel@lists.berlios.de)
-AC_REVISION($Revision: 1.1 $)
+AC_REVISION($Revision: 1.2 $)
 AC_CONFIG_SRCDIR([debug.c])
 AM_CONFIG_HEADER(config.h)
 
@@ -17,7 +17,9 @@ AC_PROG_CC
 AC_PROG_LIBTOOL
 dnl AC_PROG_RANLIB
 
-# Checks for libraries.
+# Check for readline library
+m4_include([readline.m4])
+VL_LIB_READLINE
 
 # Checks for header files.
 AC_HEADER_STDC
