@@ -2,3 +2,17 @@
 wsdebug
 wsi
 Makefile
+.deps
+.libs
+Makefile.in
+aclocal.m4
+autom4te.cache
+autoscan.log
+config.h
+config.h.in
+config.log
+config.status
+configure
+libtool
+stamp-h
+stamp-h.in
