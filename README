@@ -21,6 +21,24 @@ don't have a clue, where? - execute with wsdebug and have a look.
 
 
 ============================================================================
+what about --disable-gnump?
+
+wsdebug makes use of the GNU MP library (a library for arbitrary precision
+arithmetic), if you've got that one on your system. The advantage of this
+library is, that numbers won't be limited. Thus if you'd like to calculate 
+the faculty of 1000, you can do so with GNU MP, but not without it.
+
+This program defaults to make use of this library since the original whitespace
+interpreter makes use of it as well. The price for using it - however - is,
+much slower execution speed and higher memory consumption.
+
+So if you don't really want to calculate with large integers, you probably
+want to disable this feature. On very powerful equipment you probably don't
+want to hesitate but enable it.
+
+
+
+============================================================================
 You got some funny or obscure code, you'd like to share?
 
 Hey, please mail it to me, I'm rather interested in such (weird) stuff. 
@@ -40,4 +58,4 @@ If you want to contact me by mail, please write to stesie@gmx.de
 
 
 
-$Id: README,v 1.1 2004/09/09 15:29:41 stesie Exp $
+$Id: README,v 1.2 2004/09/11 11:23:43 stesie Exp $
