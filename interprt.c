@@ -56,8 +56,14 @@ static unsigned int interprt_number(const unsigned char *ptr);
  * setting the terminal into canonical mode however requires POSIX commands,
  * where wsdebug tries to stick to the ISO C89 / ANSI standards ...
  */
-#ifdef __USE_POSIX
+#if defined(HAVE_TERMIO_H)
 #  include <termio.h>
+#  define CAN_DISABLE_CANON 1
+#elif defined(HAVE_TERMIOS_H)
+#  include <termios.h>
+#  define CAN_DISABLE_CANON 1
+#else
+#  undef CAN_DISABLE_CANON
 #endif
 
 
@@ -575,20 +581,31 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
         return DO_SYNTAX_ERROR;
     }
 
-#ifdef __USE_POSIX
-    /* turn off canonical mode, if it isn't turn off yet! */
+#ifdef CAN_DISABLE_CANON
+    /* turn off canonical mode, if it isn't turned off yet! */
 {
+#if defined(HAVE_TERMIO_H)
+#  define TERMMODE_READ_COMMAND(a) ioctl(0, TCGETA, (a))
+#  define TERMMODE_WRITE_COMMAND(a) ioctl(0, TCSETA, (a))
     struct termio backup, termmode;
+
+#elif defined(HAVE_TERMIOS_H)
+#  define TERMMODE_READ_COMMAND(a) tcgetattr(0, (a))
+#  define TERMMODE_WRITE_COMMAND(a) tcsetattr(0, TCSANOW, (a))
+    struct termios backup, termmode;
+
+#endif
+
     int termio_restore_backup = 0;
 
-    if(toggles[TOGGLE_NOCANON].state && ! ioctl(0, TCGETA, &termmode)) {
-        memmove(&backup, &termmode, sizeof(struct termio));
+    if(toggles[TOGGLE_NOCANON].state && !TERMMODE_READ_COMMAND(&termmode)) {
+        memmove(&backup, &termmode, sizeof(termmode));
         
         termmode.c_lflag &= ~ICANON;
         termmode.c_cc[VMIN] = 1;
         termmode.c_cc[VTIME] = 0;
 
-        if(! ioctl(0, TCSETA, &termmode))
+        if(! TERMMODE_WRITE_COMMAND(&termmode))
             termio_restore_backup = 1;
     }
 #endif
@@ -608,10 +625,10 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
             return DO_SYNTAX_ERROR;
     }
 
-#ifdef __USE_POSIX
+#ifdef CAN_DISABLE_CANON
     /* restore previous mode of canonical flag, if necessary */
     if(termio_restore_backup)
-        ioctl(0, TCSETA, &backup);
+        TERMMODE_WRITE_COMMAND(&backup);
 }
 #endif
 
