@@ -1,0 +1,4 @@
+*.d
+wsdebug
+wsi
+Makefile
