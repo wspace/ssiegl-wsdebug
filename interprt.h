@@ -209,6 +209,20 @@ typedef enum {
 
 
 
+/* interpreter toggles, changing behaviour ************************************/
+extern struct toggle_t {
+    char *name;
+    char *help;
+    unsigned state :1;
+} toggles[];
+
+enum {
+    TOGGLE_NOCANON,
+    TOGGLE_LAST,
+};
+
+
+
 
 /* prototypes for interpreter / debugger couple *******************************/
 void interprt_init(void);

@@ -99,6 +99,14 @@ static void label_cache_create(void);
 
 
 
+/* allow outside to somewhat alter behaviour of whitespace interpreter.
+ * e.g. allow to choose whether to disable canonical terminal mode or not.
+ */
+struct toggle_t toggles[] = {
+    /* TOGGLE_NOCANON */ { "nocanon", "put terminal into non-canonical mode on input", 1 }
+};
+
+
 /* void interprt_init(void)
  *
  * initialize (aka start or restart) whitespace interpreter
@@ -572,9 +580,9 @@ static interprt_do_stat interprt_do_io_command(const unsigned char *ip)
     struct termio backup, termmode;
     int termio_restore_backup = 0;
 
-    if(! ioctl(0, TCGETA, &termmode)) {
+    if(toggles[TOGGLE_NOCANON].state && ! ioctl(0, TCGETA, &termmode)) {
         memmove(&backup, &termmode, sizeof(struct termio));
-
+        
         termmode.c_lflag &= ~ICANON;
         termmode.c_cc[VMIN] = 1;
         termmode.c_cc[VTIME] = 0;

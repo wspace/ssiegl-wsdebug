@@ -79,6 +79,7 @@ static int debug_exec_list(const char *arg);
 static int debug_exec_next(const char *arg);
 static int debug_exec_run(const char *arg); 
 static int debug_exec_step(const char *arg);
+static int debug_exec_toggle(const char *arg);
 
 typedef int (* debug_exec_func)(const char *arg);
 
@@ -98,9 +99,11 @@ struct {
     { "kill", "kill execution of program being debugged", debug_exec_kill, 0, 1 },
     { "list", "list lines around specified address", debug_exec_list, 1, 0 },
     { "next", "execute a whole instruction", debug_exec_next, 0, 1 },
+    { "quit", "leave, just like exit.", debug_exec_exit, 0, 0 },
     { "run", "start debugged program", debug_exec_run, 0, 0 },
     { "step", "execute exactly one whitespace instruction", debug_exec_step, 0, 1 },
-    { "quit", "leave, just like exit.", debug_exec_exit, 0, 0 },
+    { "toggle", "toggle ws-interpreter's config flags, see 'toggle help'",
+      debug_exec_toggle, 0, 0 }
 };
 
 
@@ -326,6 +329,28 @@ static int debug_exec_step(const char *arg)
     return 0;
 }
 
+
+
+static int debug_exec_toggle(const char *arg)
+{
+    int i = TOGGLE_LAST;
+
+    if(arg) 
+        while(i --)
+            if(! strcmp(toggles[i].name, arg)) {
+                toggles[i].state = !toggles[i].state;
+                printf("wsi toggle '%s' changed to %s.\n", arg,
+                       toggles[i].state ? "ON" : "OFF");
+                return 0;
+            }
+
+    printf("current status of toggle bits:\n");
+    for(i = 0; i < TOGGLE_LAST; i ++)
+        printf("%s:\t%s (%s)\n", toggles[i].name,
+               toggles[i].state ? "ON" : "OFF", toggles[i].help);
+
+    return 0; /* continue executing, else it's be useless to toggle ;) */
+}
 
 
 
