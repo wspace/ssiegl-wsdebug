@@ -12,6 +12,10 @@
  * whitespace interpreter
  */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
@@ -19,8 +23,6 @@
 
 #include "fileio.h"
 #include "interprt.h"
-
-#define VERSION "0.0.1"
 
 
 

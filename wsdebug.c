@@ -12,6 +12,10 @@
  * whitespace debugger
  */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
@@ -20,8 +24,6 @@
 #include "fileio.h"
 #include "interprt.h"
 #include "debug.h"
-
-#define VERSION "0.0.1"
 
 
 
