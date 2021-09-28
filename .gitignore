@@ -1,0 +1,13 @@
+wsdebug
+wsi
+Makefile
+config.h
+config.log
+config.status
+confdefs.h
+autom4te.cache
+libtool
+stamp-h
+*.o
+*.a
+*.tmp

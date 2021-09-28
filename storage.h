@@ -15,7 +15,7 @@
 #ifndef _STORAGE_H
 #define _STORAGE_H
 
-#include <malloc.h>
+#include <stdlib.h>
 /* #include <memory.h> */
 #include <assert.h>
 
