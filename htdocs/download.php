@@ -13,11 +13,11 @@
 		'I\'m currently putting much effort into progressing the
 		 development of wsdebug. However my time is a quite limited
 		 resource. That\'s why there currently is no release,
-		 only the CVS thingy (which\'s however working quite reliable).'); 
+		 only the git thingy (which\'s however working quite reliable).'); 
 
-	entry("how to get most recent CVS wsdebug thingy?",
+	entry("how to get most recent git wsdebug thingy?",
 		'do something like this on your command prompt: <pre>
-		cvs -z3 -d:pserver:anonymous@cvs.wsdebug.berlios.de:/cvsroot/wsdebug co wsdebug
+		git clone https://github.com/wspace/ssiegl-wsdebug wsdebug
 		</pre>');
 
 	require("footer.php");

@@ -27,7 +27,7 @@
 	
 	entry("where can I get it?",
 		'If you\'d like to have a closer look at wspacegen,
-		<a href="http://sf.net/projects/wspacegen">come here</a>');
+		<a href="https://github.com/wspace/stellwag-wspacegen">come here</a>');
 
 	require("footer.php");
 ?>

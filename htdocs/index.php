@@ -15,7 +15,7 @@
 		<br>
 		On the whole it\'s just another geeky language like Brainf\'ck
 		and others, however more adicting. For details see 
-		<a href="http://compsoc.dur.ac.uk/whitespace/">these pages</a>,
+		<a href="https://web.archive.org/web/20150717190859/http://compsoc.dur.ac.uk:80/whitespace/">these pages</a>,
 		put together by Edwin Brady, the inventor of this language.');
 
 	entry("why do I need a debugger then?",
